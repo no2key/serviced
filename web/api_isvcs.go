@@ -76,6 +76,7 @@ func getInternalServiceInstances(w *rest.ResponseWriter, r *rest.Request, ctx *r
 		return
 	}
 
+	instances := []interface{}{}
 	for _, running := range getIRS() {
 		if id == running.ID {
 			instance := struct {
@@ -95,13 +96,15 @@ func getInternalServiceInstances(w *rest.ResponseWriter, r *rest.Request, ctx *r
 				HealthStatus: getHealthStatus(running),
 				Started:      running.StartedAt,
 			}
-
-			w.WriteJson([]interface{}{instance})
-			return
+			instances = append(instances, instance)
 		}
 	}
 
-	writeJSON(w, "Internal Service Not Found.", http.StatusNotFound)
+	if len(instances) > 0 {
+		w.WriteJson(instances)
+	} else {
+		writeJSON(w, "Internal Service Not Found.", http.StatusNotFound)
+	}
 }
 
 func getInternalServiceStatuses(w *rest.ResponseWriter, r *rest.Request, ctx *requestContext) {

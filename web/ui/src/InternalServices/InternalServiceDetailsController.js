@@ -4,12 +4,11 @@
 (function(){
     "use strict";
 
-    let $q, resourcesFactory, authService, $interval, servicedConfig, InternalService, log, params;
+    let $scope, $q, resourcesFactory, authService, $interval, servicedConfig, InternalService, log, params;
 
     class InternalServiceDetailsController {
 
         constructor($scope) {
-
             authService.checkLogin(this);
 
             this.touch();
@@ -47,6 +46,28 @@
             this.startPolling();
 
             $scope.$on("$destroy", () => this.stopPolling());
+
+            this.instanceTable =  {
+                sorting: {
+                    "model.InstanceID": "asc"
+                },
+                searchColumns: ['model.InstanceID', 'model.ContainerID'],
+                // instead of watching for a change, always
+                // reload at a specified interval
+                watchExpression: (function () {
+                    var last = new Date().getTime(),
+                        now,
+                        interval = 1000;
+
+                    return function () {
+                        now = new Date().getTime();
+                        if (now - last > interval) {
+                            last = now;
+                            return now;
+                        }
+                    };
+                })()
+            };
         }
 
         touch() {
@@ -58,6 +79,7 @@
             resourcesFactory.v2.getInternalService(id)
                 .then(data => {
                     this.service = new InternalService(data);
+                    $scope.currentService = this.service;
                     this.touch();
                     deferred.resolve();
                 },
@@ -101,9 +123,10 @@
     controlplane.controller("InternalServiceDetailsController", [
     "$scope", "$q", "resourcesFactory", "authService", "$interval",
     "servicedConfig", "InternalService", "log", "$routeParams",
-    function($scope, _$q, _resourcesFactory, _authService,
+    function(_$scope, _$q, _resourcesFactory, _authService,
     _$interval, _servicedConfig, _InternalService, _log, _$routeParams) {
 
+        $scope = _$scope;
         $q = _$q;
         resourcesFactory = _resourcesFactory;
         authService = _authService;

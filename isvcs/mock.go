@@ -43,6 +43,25 @@ var DockerRegistryIRS dao.RunningService
 var KibanaIRS dao.RunningService
 var IRSMap map[string]*dao.RunningService
 
+func dupeZK(id int) dao.RunningService {
+	dupe := &dao.RunningService{}
+	*dupe = ZookeeperIRS
+	dupe.InstanceID = id
+	return *dupe
+}
+
+// Returns a list of Zookeeper instances.
+func GetZookeeperInstances() []dao.RunningService {
+	instances := []dao.RunningService{}
+
+	// Build the list of instances.
+	instances = append(instances, dupeZK(0))
+	instances = append(instances, dupeZK(1))
+	instances = append(instances, dupeZK(2))
+
+	return instances
+}
+
 func init() {
 	InternalServicesIRS = dao.RunningService{
 		Name:         "Internal Services",
