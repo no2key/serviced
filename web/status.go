@@ -81,6 +81,8 @@ type memorykey struct {
 func convertInstancesToMetric(instances []dao.RunningService) []metrics.ServiceInstance {
 	svcInstances := make([]metrics.ServiceInstance, len(instances))
 	for i, inst := range instances {
+		glog.Warningf("convertInstancesToMetric: name=%s serviceid=%s id=%s instanceid=%d instances=%d",
+			inst.Name, inst.ServiceID, inst.ID, inst.InstanceID, inst.Instances)
 		svcInstances[i] = metrics.ServiceInstance{
 			inst.ServiceID,
 			inst.InstanceID,
@@ -91,7 +93,7 @@ func convertInstancesToMetric(instances []dao.RunningService) []metrics.ServiceI
 
 func getAllServiceStatuses(ctx *requestContext) (statuses []*ConciseServiceStatus, err error) {
 	// Get all running service instances
-	glog.V(2).Info("Retrieving statuses, memory and health checks for running services")
+	glog.Info("Retrieving statuses, memory and health checks for running services")
 
 	client, err := ctx.sc.getClient()
 	if err != nil {
@@ -153,7 +155,7 @@ func getAllServiceStatuses(ctx *requestContext) (statuses []*ConciseServiceStatu
 		if isvc.ServiceID == "isvc-internalservices" {
 			checks = isvcsRootHealth
 		} else {
-			results, err := isvcs.Mgr.GetHealthStatus(strings.TrimPrefix(isvc.ServiceID, "isvc-"))
+			results, err := isvcs.Mgr.GetHealthStatus(strings.TrimPrefix(isvc.ServiceID, "isvc-"), isvc.InstanceID)
 			if err != nil {
 				glog.Warningf("Error acquiring health status for %s (%s)", isvc.ServiceID, err)
 				continue

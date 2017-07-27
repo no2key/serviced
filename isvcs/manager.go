@@ -25,6 +25,9 @@ import (
 	"path"
 	"sort"
 	"sync"
+	"time"
+	"github.com/zenoss/glog"
+	"strings"
 )
 
 // managerOp is a type of manager operation (stop, start, notify)
@@ -133,13 +136,14 @@ func (m *Manager) GetServiceNames() []string {
 	return names
 }
 
-func (m *Manager) GetHealthStatus(name string) (IServiceHealthResult, error) {
+func (m *Manager) GetHealthStatus(name string, instanceID int) (IServiceHealthResult, error) {
 	result := IServiceHealthResult{
 		ServiceName:    name,
 		ContainerName:  "",
 		ContainerID:    "",
 		HealthStatuses: make([]domain.HealthCheckStatus, 0),
 	}
+	glog.Warningf("GetHealthStatus(%s, %d)", name, instanceID)
 
 	svc, found := m.services[name]
 	if !found {
@@ -157,7 +161,39 @@ func (m *Manager) GetHealthStatus(name string) (IServiceHealthResult, error) {
 	defer svc.lock.RUnlock()
 
 	result.ContainerName = svc.name()
-	for _, value := range svc.healthStatuses {
+
+	// TODO - this is just a hack to illustrate POC because I ran out of time.
+	// But the general idea is that this section of code would be more like this:
+	//
+	//for _, value := range svc.healthStatuses[instanceID] {
+	//	result.HealthStatuses = append(result.HealthStatuses, *value)
+	//}
+	//
+	// Probably needs a little more defensive codeing to make sure instanceID is in a valid
+	// range for svc.healthStatuses, but generally speaking this method shouldn't need to know
+	// anything specific about zookeeper - it should be able to use the instanceID as an
+	// index into the list of healthStatuses.
+	//
+	// Alternatively, instead of a list of maps, healthStatuses could be a map of maps if
+	// that simplifies code here and elsewhere w.r.t. validating instanceID; e.g.
+	// 	healthStatuses map[int]map[string]*domain.HealthCheckStatus
+
+	if strings.Contains(svc.name(), "zookeeper") {
+		if instanceID == 0 {
+			glog.Warningf("%s.%d healthstatus=%v", svc.name(), instanceID, svc.healthStatuses[0]["running"])
+		} else {
+			result.HealthStatuses = append(result.HealthStatuses, domain.HealthCheckStatus{
+				Name: "running",
+				Status: "failed",
+				Timestamp: time.Now().Unix(),
+				Interval:  3.156e9,
+				StartedAt: time.Now().Unix(),
+			})
+			glog.Warningf("%s.%d healthstatus=%v", svc.name(), instanceID, result.HealthStatuses[0])
+			return result, nil
+		}
+	}
+	for _, value := range svc.healthStatuses[0] {
 		result.HealthStatuses = append(result.HealthStatuses, *value)
 	}
 	return result, nil

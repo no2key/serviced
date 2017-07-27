@@ -951,16 +951,6 @@ func init() {
 		"isvc-kibana":                 &KibanaISVC,
 	}
 
-	IRSMap = map[string]*dao.RunningService{
-		"isvc-internalservices":       &InternalServicesIRS,
-		"isvc-elasticsearch-logstash": &ElasticsearchLogStashIRS,
-		"isvc-elasticsearch-serviced": &ElasticsearchServicedIRS,
-		"isvc-zookeeper":              &ZookeeperIRS,
-		"isvc-logstash":               &LogstashIRS,
-		"isvc-opentsdb":               &OpentsdbIRS,
-		"isvc-docker-registry":        &DockerRegistryIRS,
-		"isvc-kibana":                 &KibanaIRS,
-	}
 	initZK()
 	initOTSDB()
 	initLogstash()

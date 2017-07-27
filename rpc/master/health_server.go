@@ -40,7 +40,8 @@ func (s *Server) GetISvcsHealth(IServiceNames []string, results *[]isvcs.IServic
 
 	healthStatuses := make([]isvcs.IServiceHealthResult, len(IServiceNames))
 	for i, name := range IServiceNames {
-		status, err := isvcs.Mgr.GetHealthStatus(name)
+		// TODO - needs work to return all instances
+		status, err := isvcs.Mgr.GetHealthStatus(name, 0)
 		if err != nil {
 			return err
 		}

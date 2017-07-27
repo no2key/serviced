@@ -111,11 +111,13 @@ func getIRS() []dao.RunningService {
 	services = append(services, isvcs.InternalServicesIRS)
 	services = append(services, isvcs.ElasticsearchServicedIRS)
 	services = append(services, isvcs.ElasticsearchLogStashIRS)
-	services = append(services, isvcs.ZookeeperIRS)
+	services = append(services, isvcs.GetZookeeperRunningServices()...)
 	services = append(services, isvcs.LogstashIRS)
 	services = append(services, isvcs.OpentsdbIRS)
 	services = append(services, isvcs.DockerRegistryIRS)
 	services = append(services, isvcs.KibanaIRS)
+
+	plog.Warningf("getIRS returned %d services", len(services))
 	return services
 }
 

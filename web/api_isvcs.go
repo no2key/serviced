@@ -25,6 +25,7 @@ import (
 	"github.com/control-center/serviced/isvcs"
 
 	"github.com/zenoss/go-json-rest"
+	"github.com/zenoss/glog"
 )
 
 func getAllInternalServices(w *rest.ResponseWriter, r *rest.Request, ctx *requestContext) {
@@ -67,6 +68,15 @@ func getInternalService(w *rest.ResponseWriter, r *rest.Request, ctx *requestCon
 }
 
 func getInternalServiceInstances(w *rest.ResponseWriter, r *rest.Request, ctx *requestContext) {
+	type isvcInstance struct {
+		InstanceID   int
+		ServiceID    string
+		ServiceName  string
+		ContainerID  string
+		DesiredState int
+		HealthStatus map[string]health.Status
+		Started      time.Time
+	}
 	id, err := url.QueryUnescape(r.PathParam("id"))
 	if err != nil {
 		writeJSON(w, err, http.StatusBadRequest)
@@ -76,17 +86,15 @@ func getInternalServiceInstances(w *rest.ResponseWriter, r *rest.Request, ctx *r
 		return
 	}
 
-	for _, running := range getIRS() {
+
+	instances := []isvcInstance{}
+	allRunning := getIRS()
+	glog.Warningf("getInternalServiceInstances: len(allRunning)=%d", len(allRunning))
+	for _, running := range allRunning {
 		if id == running.ID {
-			instance := struct {
-				InstanceID   int
-				ServiceID    string
-				ServiceName  string
-				ContainerID  string
-				DesiredState int
-				HealthStatus map[string]health.Status
-				Started      time.Time
-			}{
+			glog.Warningf("Getting health for name=%s serviceid=%s dockerid=%s id=%s instanceid=%d",
+				running.Name, running.ServiceID, running.DockerID, running.ID, running.InstanceID)
+			instance := isvcInstance{
 				InstanceID:   running.InstanceID,
 				ServiceID:    running.ServiceID,
 				ServiceName:  running.Name,
@@ -95,13 +103,20 @@ func getInternalServiceInstances(w *rest.ResponseWriter, r *rest.Request, ctx *r
 				HealthStatus: getHealthStatus(running),
 				Started:      running.StartedAt,
 			}
-
-			w.WriteJson([]interface{}{instance})
-			return
+			instances = append(instances, instance)
+		} else {
+			glog.Warningf("Skipping running, name=%s serviceid=%s dockerid=%s id=%s instanceid=%d",
+				running.Name, running.ServiceID, running.DockerID, running.ID, running.InstanceID)
 		}
 	}
 
-	writeJSON(w, "Internal Service Not Found.", http.StatusNotFound)
+	if len(instances) > 0 {
+		glog.Warningf("getInternalServiceInstances: len(instances)=%d", len(instances))
+		w.WriteJson(instances)
+	} else {
+		glog.Warningf("getInternalServiceInstances: NOT FOUND")
+		writeJSON(w, "Internal Service Not Found.", http.StatusNotFound)
+	}
 }
 
 func getInternalServiceStatuses(w *rest.ResponseWriter, r *rest.Request, ctx *requestContext) {
@@ -199,7 +214,7 @@ func getHealthStatus(running dao.RunningService) map[string]health.Status {
 	if running.ServiceID == "isvc-internalservices" {
 		healthChecks = isvcsRootHealth
 	} else {
-		results, err := isvcs.Mgr.GetHealthStatus(strings.TrimPrefix(running.ServiceID, "isvc-"))
+		results, err := isvcs.Mgr.GetHealthStatus(strings.TrimPrefix(running.ServiceID, "isvc-"), running.InstanceID)
 		if err != nil {
 			healthStatusMap["alive"] = health.Unknown
 			return healthStatusMap
@@ -210,5 +225,6 @@ func getHealthStatus(running dao.RunningService) map[string]health.Status {
 	for name, check := range healthChecks {
 		healthStatusMap[name] = check.Status
 	}
+	glog.Warningf("getHealthStatus returned %d results", len(healthStatusMap))
 	return healthStatusMap
 }

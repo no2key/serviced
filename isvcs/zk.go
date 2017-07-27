@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"net"
 	"time"
+	"github.com/control-center/serviced/dao"
 )
 
 var Zookeeper IServiceDefinition
@@ -75,6 +76,21 @@ func initZK() {
 	if err != nil {
 		log.WithError(err).Fatal("Unable to initialize ZooKeeper internal service container")
 	}
+}
+
+func GetZookeeperRunningServices() []dao.RunningService {
+	zkInstance2 := ZookeeperIRS
+	zkInstance2.InstanceID = 1
+	zkInstance3 := ZookeeperIRS
+	zkInstance3.InstanceID = 2
+
+	results := []dao.RunningService{
+		ZookeeperIRS,
+		zkInstance2,
+		zkInstance3,
+	}
+	log.Warningf("GetZookeeperRunningServices return %d instances", len(results))
+	return results
 }
 
 // a health check for zookeeper

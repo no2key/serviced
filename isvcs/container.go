@@ -145,7 +145,7 @@ type IService struct {
 	exited      <-chan int
 
 	lock           *sync.RWMutex
-	healthStatuses map[string]*domain.HealthCheckStatus
+	healthStatuses []map[string]*domain.HealthCheckStatus
 }
 
 func NewIService(sd IServiceDefinition) (*IService, error) {
@@ -175,9 +175,10 @@ func NewIService(sd IServiceDefinition) (*IService, error) {
 	}
 
 	if len(svc.HealthChecks) > 0 {
-		svc.healthStatuses = make(map[string]*domain.HealthCheckStatus, len(svc.HealthChecks))
+		svc.healthStatuses = make([]map[string]*domain.HealthCheckStatus, 1)
+		svc.healthStatuses[0] = make(map[string]*domain.HealthCheckStatus, len(svc.HealthChecks))
 		for name, healthCheckDefinition := range svc.HealthChecks {
-			svc.healthStatuses[name] = &domain.HealthCheckStatus{
+			svc.healthStatuses[0][name] = &domain.HealthCheckStatus{
 				Name:      name,
 				Status:    "unknown",
 				Interval:  healthCheckDefinition.Interval.Seconds(),
@@ -187,8 +188,9 @@ func NewIService(sd IServiceDefinition) (*IService, error) {
 		}
 	} else {
 		name := DEFAULT_HEALTHCHECK_NAME
-		svc.healthStatuses = make(map[string]*domain.HealthCheckStatus, 1)
-		svc.healthStatuses[name] = &domain.HealthCheckStatus{
+		svc.healthStatuses = make([]map[string]*domain.HealthCheckStatus, 1)
+		svc.healthStatuses[0] = make(map[string]*domain.HealthCheckStatus, 1)
+		svc.healthStatuses[0][name] = &domain.HealthCheckStatus{
 			Name:      name,
 			Status:    "unknown",
 			Interval:  3.156e9,
@@ -784,7 +786,7 @@ func (svc *IService) startupHealthcheck() <-chan error {
 				currentTime := time.Now()
 				elapsed := time.Since(startCheck)
 				result = svc.runCheckOrTimeout(checkDefinition)
-				svc.setHealthStatus(result, currentTime.Unix())
+				svc.setHealthStatus(result, currentTime.Unix(), 0)
 				log := log.WithFields(logrus.Fields{
 					"isvc":    svc.Name,
 					"elapsed": elapsed,
@@ -803,7 +805,7 @@ func (svc *IService) startupHealthcheck() <-chan error {
 			}
 			err <- result
 		} else {
-			svc.setHealthStatus(nil, time.Now().Unix())
+			svc.setHealthStatus(nil, time.Now().Unix(), 0)
 			err <- nil
 		}
 	}()
@@ -859,7 +861,7 @@ func (svc *IService) doHealthChecks(halt <-chan struct{}) {
 
 		case currentTime := <-timer:
 			err := svc.runCheckOrTimeout(checkDefinition)
-			svc.setHealthStatus(err, currentTime.Unix())
+			svc.setHealthStatus(err, currentTime.Unix(), 0)
 			if err != nil {
 				log.WithError(err).Warn("Health check failed")
 			}
@@ -867,8 +869,9 @@ func (svc *IService) doHealthChecks(halt <-chan struct{}) {
 	}
 }
 
-func (svc *IService) setHealthStatus(result error, currentTime int64) {
-	if len(svc.healthStatuses) == 0 {
+func (svc *IService) setHealthStatus(result error, currentTime int64, instanceID int) {
+	// TODO - add safety checks to make sure that instanceID is in valid range of [0..len(svc.healthStatuses)-1]
+	if len(svc.healthStatuses) == 0 || len(svc.healthStatuses[instanceID]) == 0 {
 		return
 	}
 
@@ -879,7 +882,7 @@ func (svc *IService) setHealthStatus(result error, currentTime int64) {
 		"isvc": svc.Name,
 	})
 
-	if healthStatus, found := svc.healthStatuses[DEFAULT_HEALTHCHECK_NAME]; found {
+	if healthStatus, found := svc.healthStatuses[instanceID][DEFAULT_HEALTHCHECK_NAME]; found {
 		if result == nil {
 			if healthStatus.Status != "passed" && healthStatus.Status != "unknown" {
 				log.Info("Internal service checked in healthy")
@@ -909,20 +912,23 @@ func (svc *IService) setStoppedHealthStatus(stopResult error) {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 
-	if healthStatus, found := svc.healthStatuses[DEFAULT_HEALTHCHECK_NAME]; found {
-		healthStatus.Status = "stopped"
-		if stopResult == nil {
-			healthStatus.Failure = ""
+	// Stop the healthstatus for each instance ID
+	for _, healthStatuses := range svc.healthStatuses {
+		if healthStatus, found := healthStatuses[DEFAULT_HEALTHCHECK_NAME]; found {
+			healthStatus.Status = "stopped"
+			if stopResult == nil {
+				healthStatus.Failure = ""
+			} else {
+				healthStatus.Failure = stopResult.Error()
+			}
+			healthStatus.Timestamp = time.Now().Unix()
+			healthStatus.StartedAt = 0
 		} else {
-			healthStatus.Failure = stopResult.Error()
+			log.WithFields(logrus.Fields{
+				"isvc":        svc.Name,
+				"healthcheck": DEFAULT_HEALTHCHECK_NAME,
+			}).Warn("Default health check not found")
 		}
-		healthStatus.Timestamp = time.Now().Unix()
-		healthStatus.StartedAt = 0
-	} else {
-		log.WithFields(logrus.Fields{
-			"isvc":        svc.Name,
-			"healthcheck": DEFAULT_HEALTHCHECK_NAME,
-		}).Warn("Default health check not found")
 	}
 }
 

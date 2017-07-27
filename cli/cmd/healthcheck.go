@@ -41,6 +41,14 @@ func (c *ServicedCli) cmdHealthCheck(ctx *cli.Context) error {
 		return c.exit(2)
 	} else {
 
+		// TODO - Something needs to be done here to show different healthchecks and different instances.
+		//
+		// However, we can not break backwards compatibility for the HA resource agents < 1.0.0.
+		// For backwards compatibility with the HA resource agent, the output format does not matter.
+		// What does matter is the process exit code.
+		// A failed healtcheck for one or more of the *remote* isvcs should NOT trigger an exitStatus of 1.
+		// The exitStatus should be 1 only if one of the isvcs running on the master node has a failed
+		// healthcheck.
 		exitStatus := 0
 		t := NewTable("Service Name,Container Name,Container ID,Health Check,Status")
 		t.Padding = 2
